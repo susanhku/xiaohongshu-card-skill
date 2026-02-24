@@ -1,0 +1,271 @@
+# Layout Templates — 通用代码结构
+
+## HTML 骨架（每次都用这个）
+
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>小红书卡片</title>
+<!-- Google Fonts：根据风格文件选择 -->
+<link href="..." rel="stylesheet">
+<!-- 导出依赖 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { background: #e8e8e8; }
+
+/* 控制栏 */
+#controls {
+  position: sticky; top: 0; z-index: 100;
+  background: #fff; padding: 14px 24px;
+  display: flex; gap: 12px; align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  font-family: sans-serif;
+}
+.btn-dl-all {
+  padding: 8px 20px; border: none; border-radius: 20px;
+  background: #333; color: #fff; cursor: pointer;
+  font-size: 13px;
+}
+.btn-dl-all:hover { background: #000; }
+
+/* 卡片容器 */
+#cards-wrapper {
+  display: flex; flex-direction: column;
+  align-items: center; padding: 40px 20px;
+}
+
+/* 每张卡片的单元（卡片 + 下载按钮） */
+.card-unit {
+  display: flex; flex-direction: column;
+  align-items: center; margin-bottom: 60px;
+}
+
+/* 核心：卡片尺寸 */
+.card {
+  width: 1080px;
+  height: 1440px;
+  position: relative;
+  overflow: hidden;
+  /* 缩小在屏幕上显示 */
+  transform: scale(0.38);
+  transform-origin: top center;
+  margin-bottom: -893px;
+}
+
+/* 单张下载按钮 */
+.btn-dl-single {
+  margin-top: 8px;
+  padding: 7px 20px;
+  border: 1.5px solid #333;
+  background: transparent;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: sans-serif;
+}
+.btn-dl-single:hover { background: #333; color: #fff; }
+
+/* 导出遮罩 */
+#loading {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55); z-index: 999;
+  color: #fff; font-family: sans-serif;
+  flex-direction: column; gap: 16px;
+  justify-content: center; align-items: center;
+}
+
+/* ===== 风格相关样式写在这里 ===== */
+
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div style="font-size:40px">⏳</div>
+  <div id="loading-text">正在生成...</div>
+</div>
+
+<div id="controls">
+  <span style="font-size:14px;color:#666;">共 N 张卡片</span>
+  <button class="btn-dl-all" onclick="downloadAll()">📦 下载全部 ZIP</button>
+</div>
+
+<div id="cards-wrapper">
+
+  <!-- 封面 -->
+  <div class="card-unit">
+    <div class="card" id="card-1">
+      <!-- 封面内容 -->
+    </div>
+    <button class="btn-dl-single" onclick="downloadCard('card-1','01_封面.jpg')">⬇ 第1张</button>
+  </div>
+
+  <!-- 内容页（复制此块，按需增加） -->
+  <div class="card-unit">
+    <div class="card" id="card-2">
+      <!-- 内容 -->
+    </div>
+    <button class="btn-dl-single" onclick="downloadCard('card-2','02_内容.jpg')">⬇ 第2张</button>
+  </div>
+
+  <!-- 结尾页 -->
+  <div class="card-unit">
+    <div class="card" id="card-N">
+      <!-- 结尾 -->
+    </div>
+    <button class="btn-dl-single" onclick="downloadCard('card-N','0N_结尾.jpg')">⬇ 第N张</button>
+  </div>
+
+</div>
+
+<script>
+async function downloadCard(cardId, filename) {
+  const loading = document.getElementById('loading');
+  document.getElementById('loading-text').textContent = `正在生成 ${filename}...`;
+  loading.style.display = 'flex';
+
+  await document.fonts.ready;
+  const card = document.getElementById(cardId);
+  const origTransform = card.style.transform;
+  const origMargin = card.style.marginBottom;
+  card.style.transform = 'scale(1)';
+  card.style.marginBottom = '0';
+
+  try {
+    const canvas = await html2canvas(card, {
+      width: 1080, height: 1440, scale: 2,
+      useCORS: true, allowTaint: false, logging: false
+    });
+    canvas.toBlob(blob => {
+      saveAs(blob, filename);
+      loading.style.display = 'none';
+    }, 'image/jpeg', 0.95);
+  } catch(e) {
+    alert('导出失败：' + e.message);
+    loading.style.display = 'none';
+  }
+
+  card.style.transform = origTransform;
+  card.style.marginBottom = origMargin;
+}
+
+async function downloadAll() {
+  const loading = document.getElementById('loading');
+  loading.style.display = 'flex';
+  await document.fonts.ready;
+
+  const zip = new JSZip();
+  const units = document.querySelectorAll('.card-unit');
+
+  for (let i = 0; i < units.length; i++) {
+    const card = units[i].querySelector('.card');
+    document.getElementById('loading-text').textContent =
+      `正在处理第 ${i+1} / ${units.length} 张...`;
+
+    const origTransform = card.style.transform;
+    const origMargin = card.style.marginBottom;
+    card.style.transform = 'scale(1)';
+    card.style.marginBottom = '0';
+
+    const canvas = await html2canvas(card, {
+      width: 1080, height: 1440, scale: 2,
+      useCORS: true, allowTaint: false, logging: false
+    });
+
+    card.style.transform = origTransform;
+    card.style.marginBottom = origMargin;
+
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+    zip.file(`${String(i+1).padStart(2,'0')}_card.jpg`, blob);
+  }
+
+  document.getElementById('loading-text').textContent = '打包中...';
+  const content = await zip.generateAsync({ type: 'blob' });
+  saveAs(content, '小红书卡片.zip');
+  loading.style.display = 'none';
+}
+</script>
+</body>
+</html>
+```
+
+---
+
+## 常用卡片内部布局片段
+
+### 封面（居中型）
+```html
+<div style="
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  justify-content:center; align-items:center;
+  text-align:center; padding:100px 80px;
+">
+  <div class="cover-label">标签文字</div>
+  <h1 class="cover-title">主标题</h1>
+  <p class="cover-sub">副标题或一句话</p>
+</div>
+<div class="page-num">01 / 0N</div>
+```
+
+### 内容页（标题+要点列表）
+```html
+<div class="card-inner">
+  <div class="section-tag">PART 01</div>
+  <h2 class="card-title">这里是标题</h2>
+  <div class="divider"></div>
+  <div class="points">
+    <div class="point-item">
+      <span class="point-num">01</span>
+      <div>
+        <div class="point-title">要点标题</div>
+        <div class="point-desc">要点描述，简洁说明，不超过两行。</div>
+      </div>
+    </div>
+    <!-- 重复 -->
+  </div>
+</div>
+<div class="page-num">02 / 0N</div>
+```
+
+### 内容页（大段引用/金句）
+```html
+<div class="card-inner" style="justify-content:center;">
+  <div class="quote-mark">❝</div>
+  <blockquote class="quote-text">
+    这里放一段有力量的话，不要太长，让它呼吸。
+  </blockquote>
+  <div class="quote-author">— 来源或作者</div>
+</div>
+```
+
+### 结尾页
+```html
+<div style="
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  justify-content:center; align-items:center;
+  text-align:center; padding:100px 80px;
+">
+  <div class="end-icon">🌿</div>
+  <div class="end-main">结尾主文字</div>
+  <div class="end-sub">副文字，互动引导</div>
+  <!-- 根据风格选择：标签组 或 单句话 -->
+</div>
+```
+
+### 页码（每张卡片右下角）
+```html
+<div style="
+  position:absolute; bottom:50px; right:60px;
+  font-size:26px; color:rgba(0,0,0,0.25);
+  font-family: 'Courier Prime', monospace;
+  letter-spacing:0.1em;
+">01 / 05</div>
+```
